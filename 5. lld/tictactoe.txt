@@ -1,0 +1,122 @@
+type Player struct {
+	ID     string
+	Name   string
+	Symbol Symbol
+	Input  PlayerInputStrategy
+}
+
+type Symbol string
+
+const (
+	X Symbol = "X"
+	O Symbol = "O"
+)
+
+type Cell struct {
+	Row    int
+	Col    int
+	Symbol Symbol
+}
+
+type Board struct {
+	Size  int
+	Cells [][]*Cell
+}
+
+func NewBoard(size int) *Board {
+	// initialize empty board
+}
+
+type Move struct {
+	Player *Player
+	Row    int
+	Col    int
+}
+
+type GameStatus int
+
+const (
+	ONGOING GameStatus = iota
+	DRAW
+	WIN
+)
+
+type WinningStrategy interface {
+	CheckWinner(board *Board, lastMove Move) (bool, error)
+}
+
+type RowWinningStrategy struct{}
+
+func (r *RowWinningStrategy) CheckWinner(board *Board, lastMove Move) (bool, error) {
+	// logic to check row for winner
+}
+
+type PlayerInputStrategy interface {
+	GetMove(board *Board) Move
+}
+
+type GameMode interface {
+	SetupGame() *Game
+}
+
+type TwoPlayerMode struct {
+	Player1 *Player
+	Player2 *Player
+	Size    int
+}
+
+func (m *TwoPlayerMode) SetupGame() *Game {
+	// create board, game, players
+}
+
+type Game struct {
+	Board            *Board
+	Players          []*Player
+	CurrentTurnIndex int
+	Moves            []Move
+	Status           GameStatus
+	Winner           *Player
+	WinningStrategy  WinningStrategy
+}
+
+func (g *Game) MakeMove() error {
+	player := g.Players[g.CurrentTurnIndex]
+	move := player.Input.GetMove(g.Board)
+
+	// validate move
+	// update board
+	// add move to history
+
+	g.Moves = append(g.Moves, move)
+	g.Board.Cells[move.Row][move.Col].Symbol = player.Symbol
+
+	// check win
+	won, _ := g.WinningStrategy.CheckWinner(g.Board, move)
+	if won {
+		g.Status = WIN
+		g.Winner = player
+		return nil
+	}
+
+	// check draw
+	if len(g.Moves) == g.Board.Size*g.Board.Size {
+		g.Status = DRAW
+		return nil
+	}
+
+	// next turn
+	g.CurrentTurnIndex = (g.CurrentTurnIndex + 1) % len(g.Players)
+	return nil
+}
+
+type GameFactory struct{}
+
+func (gf *GameFactory) CreateGame(mode GameMode) *Game {
+	return mode.SetupGame()
+}
+
+type GameEventListener interface {
+	OnGameStart(game *Game)
+	OnMoveMade(move Move)
+	OnGameEnd(game *Game)
+}

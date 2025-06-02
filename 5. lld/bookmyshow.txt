@@ -1,0 +1,129 @@
+Let’s design the Low-Level Design (LLD) for a system like BookMyShow, focusing on ticket booking, show management, and seat selection. 
+We’ll use clean interfaces, SOLID principles, and relevant design patterns.
+
+
+🚀 Booking Flow
+	1.	User selects movie, city.
+	2.	App shows list of theatres and shows.
+	3.	User selects show, chooses seats.
+	4.	Call InitiateBooking(userId, showId, seatIDs) — block seats.
+	5.	Call ConfirmBooking(bookingId) — mark seats as booked.
+	6.	Optional: CancelBooking() — revert seat status.
+
+type User struct {
+	ID    string
+	Name  string
+	Email string
+	Phone string
+}
+
+type City struct {
+	ID   string
+	Name string
+}
+
+type Theatre struct {
+	ID      string
+	Name    string
+	CityID  string
+	Screens []Screen
+}
+
+type Screen struct {
+	ID       string
+	Name     string
+	Seats    []Seat
+	ShowList []Show
+}
+
+type Seat struct {
+	ID       string
+	Row      string
+	Col      int
+	SeatType SeatType
+}
+
+type SeatType int
+
+const (
+	REGULAR SeatType = iota + 1
+	PREMIUM
+	VIP
+)
+
+type Movie struct {
+	ID       string
+	Title    string
+	Duration int // in minutes
+	Lang     string
+}
+
+type Show struct {
+	ID        string
+	MovieID   string
+	StartTime time.Time
+	EndTime   time.Time
+	ScreenID  string
+	SeatMap   map[string]SeatStatus
+}
+
+type SeatStatus int
+
+const (
+	AVAILABLE SeatStatus = iota + 1
+	BOOKED
+	BLOCKED
+)
+
+type Booking struct {
+	ID        string
+	UserID    string
+	ShowID    string
+	SeatIDs   []string
+	Status    BookingStatus
+	CreatedAt time.Time
+}
+
+type BookingStatus int
+
+const (
+	INITIATED BookingStatus = iota + 1
+	CONFIRMED
+	CANCELLED
+)
+
+type MovieService interface {
+	AddMovie(movie Movie)
+	GetMoviesByCity(cityId string) []Movie
+}
+
+type TheatreService interface {
+	AddTheatre(theatre Theatre)
+	GetTheatresByCity(cityId string) []Theatre
+}
+
+type ShowService interface {
+	AddShow(show Show)
+	GetShows(movieId, cityId string) []Show
+	GetAvailableSeats(showId string) map[string]SeatStatus
+}
+
+type BookingService interface {
+	InitiateBooking(userId, showId string, seatIDs []string) (string, error)
+	ConfirmBooking(bookingId string) error
+	CancelBooking(bookingId string) error
+}
+
+type PricingStrategy interface {
+	GetPrice(seat Seat) float64
+}
+
+type BasePricingStrategy struct {}
+func (b *BasePricingStrategy) GetPrice(seat Seat) float64 {
+	switch seat.SeatType {
+	case REGULAR: return 100
+	case PREMIUM: return 150
+	case VIP: return 200
+	}
+	return 0
+}

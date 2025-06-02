@@ -1,0 +1,506 @@
+# OOP and SOLID Principles in Go – Interview Notes
+
+## 1. OOP Concepts Practiced in Go
+
+### Encapsulation
+- Bundling data (fields) and methods that operate on the data into a single unit (struct).
+- Example: `Account` struct with methods like `Deposit`, `Withdraw`, and `GetBalance`.
+
+### Abstraction
+- Exposing only necessary details via interfaces.
+- Example: `Shape` interface with `Area` and `Perimeter` methods implemented by `Rectangle` and `Circle`.
+
+### Inheritance (via composition)
+- Go does not support traditional inheritance but allows composition to reuse code.
+
+### Polymorphism
+- Achieved using interfaces; different types implement the same interface differently.
+- Example: `Employee` interface implemented by `FullTimeEmployee` and `ContractEmployee`.
+
+---
+
+## 2. SOLID Principles in Go
+
+### S – Single Responsibility Principle (SRP)
+- A struct should have only one reason to change.
+- Example: `Invoice` for data/print, and `Saver` for saving invoice data.
+
+### O – Open/Closed Principle (OCP)
+- Entities should be open for extension, but closed for modification.
+- Example: `PaymentProcessor` interface allows new processors (e.g., PayPal) without modifying existing logic.
+
+### L – Liskov Substitution Principle (LSP)
+- Subtypes must be substitutable for their base types without breaking functionality.
+- Fix: Split broad interfaces into smaller, focused ones (`Printer`, `Scanner`, etc.) to allow proper substitution.
+
+### I – Interface Segregation Principle (ISP)
+- Clients should not be forced to depend on interfaces they do not use.
+- Example: Replacing a fat `Machine` interface with smaller ones (`Printer`, `Scanner`, `Fax`).
+
+### D – Dependency Inversion Principle (DIP)
+- High-level modules should not depend on low-level modules; both should depend on abstractions.
+- Example: `UserService` depending on `Messenger` interface instead of concrete `EmailSender`.
+
+---
+
+## Summary
+- Go uses interfaces for polymorphism and abstraction.
+- Composition is used instead of inheritance.
+- SOLID principles are applied using interfaces, abstraction, and dependency injection.
+
+Prepare examples of each for your interviews and be ready to explain how you followed or fixed violations of these principles.
+
+
+---
+
+## 3. Go Idioms
+
+### 1. Interface-as-Contract, Not Implementation
+- "Accept interfaces, return structs"
+```go
+type Reader interface {
+    Read(p []byte) (n int, err error)
+}
+
+func ProcessData(r Reader) {
+    // works with anything that implements Reader
+}
+```
+
+### 2. Composition over Inheritance
+```go
+type Logger struct{}
+
+func (l *Logger) Log(msg string) {
+    fmt.Println("LOG:", msg)
+}
+
+type App struct {
+    Logger
+}
+
+func main() {
+    app := App{}
+    app.Log("Application started") // Logger functionality reused via composition
+}
+```
+
+### 3. Zero Value Is Useful
+```go
+type Counter struct {
+    Count int // default is 0, usable without init
+}
+```
+
+### 4. Short Variable Declarations
+```go
+func main() {
+    name := "Go"
+    fmt.Println("Hello,", name)
+}
+```
+
+### 5. Error Handling, Not Exceptions
+```go
+file, err := os.Open("data.txt")
+if err != nil {
+    log.Fatal(err)
+}
+defer file.Close()
+```
+
+### 6. Named Result Parameters
+```go
+func divide(a, b float64) (result float64, err error) {
+    if b == 0 {
+        err = fmt.Errorf("division by zero")
+        return
+    }
+    result = a / b
+    return
+}
+```
+
+### 7. Keep Things Simple & Flat
+```go
+func isValid(age int) bool {
+    if age < 18 {
+        return false
+    }
+    return true
+}
+```
+
+### 8. Use `defer` for Cleanup
+```go
+func readFile(name string) {
+    f, err := os.Open(name)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer f.Close() // ensures file is closed when function exits
+}
+```
+
+### 9. Slices and Maps Are Passed by Reference
+```go
+func modify(slice []int) {
+    slice[0] = 99
+}
+
+func main() {
+    nums := []int{1, 2, 3}
+    modify(nums)
+    fmt.Println(nums) // [99 2 3]
+}
+```
+
+---
+
+## 4. Go Concurrency (Goroutines, Channels, etc.)
+
+### 1. Goroutines – Lightweight Threads
+```go
+go func() {
+    fmt.Println("Hello from goroutine")
+}()
+```
+
+### 2. Channels – Communication Between Goroutines
+```go
+ch := make(chan int)
+go func() {
+    ch <- 5
+}()
+val := <-ch
+fmt.Println(val)
+```
+
+### 3. Buffered Channels
+```go
+ch := make(chan int, 2)
+ch <- 1
+ch <- 2
+fmt.Println(<-ch)
+fmt.Println(<-ch)
+```
+
+### 4. Select Statement – Multiplexing
+```go
+select {
+case msg := <-ch1:
+    fmt.Println("Received", msg)
+case msg := <-ch2:
+    fmt.Println("Received", msg)
+default:
+    fmt.Println("No message received")
+}
+```
+Imagine a row of cashiers in a supermarket.
+
+You are the select statement.
+Each cashier is a case (a channel operation).
+You go to the first cashier who calls "Next!" (whose line is ready to accept you).
+Once you're served by that one cashier, you leave the select statement. You don't then go to another cashier in the same trip.
+
+### 5. WaitGroup – Waiting for Goroutines to Finish
+```go
+var wg sync.WaitGroup
+wg.Add(1)
+go func() {
+    defer wg.Done()
+    fmt.Println("Done")
+}()
+wg.Wait()
+```
+
+### 6. Mutex – Mutual Exclusion for Shared State
+```go
+var mu sync.Mutex
+mu.Lock()
+// critical section
+mu.Unlock()
+```
+
+
+---
+
+## 5. Go Standard Library Patterns
+
+### 1. Using `context.Context` for Cancellation and Timeouts
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+defer cancel()
+
+select {
+case <-time.After(3 * time.Second):
+    fmt.Println("operation completed")
+case <-ctx.Done():
+    fmt.Println("operation cancelled:", ctx.Err())
+}
+```
+
+### 2. HTTP Server and Client
+
+#### HTTP Server
+```go
+http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintln(w, "Hello, World!")
+})
+log.Fatal(http.ListenAndServe(":8080", nil))
+```
+
+#### HTTP Client
+```go
+resp, err := http.Get("https://example.com")
+if err != nil {
+    log.Fatal(err)
+}
+defer resp.Body.Close()
+body, _ := io.ReadAll(resp.Body)
+fmt.Println(string(body))
+```
+
+### 3. Working with Time
+```go
+fmt.Println("Now:", time.Now())
+
+time.Sleep(1 * time.Second)
+
+select {
+case <-time.After(2 * time.Second):
+    fmt.Println("Timeout!")
+}
+```
+
+### 4. Reading and Writing Files
+```go
+data := []byte("Hello, file!")
+err := os.WriteFile("example.txt", data, 0644)
+if err != nil {
+    log.Fatal(err)
+}
+
+readData, err := os.ReadFile("example.txt")
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Println(string(readData))
+```
+
+### 5. Command-line Flags
+```go
+name := flag.String("name", "Go", "a name to say hello to")
+flag.Parse()
+fmt.Println("Hello", *name)
+```
+
+### 6. Logging with `log`
+```go
+log.Println("Info: Something happened")
+log.Fatal("Fatal: exiting") // prints and exits
+```
+
+---
+
+## 6. Design Patterns in Go (Interview-Focused)
+
+### 1. Singleton Pattern
+Ensures only one instance of a type exists across the program.
+
+```go
+type Logger struct{}
+var instance *Logger
+var once sync.Once
+
+func GetLoggerInstance() *Logger {
+    once.Do(func() {
+        instance = &Logger{}
+    })
+    return instance
+}
+```
+
+### 2. Factory Pattern
+Encapsulates object creation logic and returns an interface.
+
+```go
+type Notifier interface {
+    Notify(user string, msg string)
+}
+
+type EmailNotifier struct{}
+func (e *EmailNotifier) Notify(user, msg string) {
+    fmt.Println("Email to", user, ":", msg)
+}
+
+func GetNotifier(t string) Notifier {
+    switch t {
+    case "email":
+        return &EmailNotifier{}
+    default:
+        return nil
+    }
+}
+```
+
+### 3. Strategy Pattern
+Encapsulates interchangeable behavior.
+
+```go
+type PaymentStrategy interface {
+    Pay(amount float64)
+}
+
+type CreditCard struct{}
+func (c *CreditCard) Pay(amount float64) {
+    fmt.Println("Paid with credit card:", amount)
+}
+
+type PaymentProcessor struct {
+    strategy PaymentStrategy
+}
+
+func (p *PaymentProcessor) SetStrategy(s PaymentStrategy) {
+    p.strategy = s
+}
+
+func (p *PaymentProcessor) Pay(amount float64) {
+    p.strategy.Pay(amount)
+}
+```
+
+### 4. Observer Pattern
+Allows a subject to notify all observers of a change.
+
+```go
+type Observer interface {
+    Update(name string, price float64)
+}
+
+type Stock struct {
+    name string
+    price float64
+    observers []Observer
+}
+
+func (s *Stock) Register(o Observer) {
+    s.observers = append(s.observers, o)
+}
+
+func (s *Stock) SetPrice(p float64) {
+    s.price = p
+    for _, o := range s.observers {
+        o.Update(s.name, s.price)
+    }
+}
+```
+
+### 5. Decorator Pattern
+Dynamically adds behavior to an object.
+
+```go
+type Sender interface {
+    Send(to, msg string)
+}
+
+type BasicSender struct{}
+func (b *BasicSender) Send(to, msg string) {
+    fmt.Println("Sending:", msg)
+}
+type LoggingSender struct {
+    wrapped Sender
+}
+func (l *LoggingSender) Send(to, msg string) {
+    fmt.Println("Log:", msg)
+    l.wrapped.Send(to, msg)
+}
+```
+
+### 6. Command Pattern
+Encapsulates a request as an object.
+
+```go
+type Command interface {
+    Execute()
+}
+
+type Light struct{}
+func (l *Light) On()  { fmt.Println("Light ON") }
+func (l *Light) Off() { fmt.Println("Light OFF") }
+
+type OnCommand struct { light *Light }
+func (c *OnCommand) Execute() { c.light.On() }
+
+type Remote struct {
+    command Command
+}
+func (r *Remote) SetCommand(c Command) { r.command = c }
+func (r *Remote) Press()               { r.command.Execute() }
+```
+
+### 7. Builder Pattern
+Simplifies the construction of complex objects.
+
+```go
+type User struct {
+    Name string
+    Email string
+}
+
+type UserBuilder struct {
+    user *User
+}
+
+func NewUserBuilder() *UserBuilder {
+    return &UserBuilder{user: &User{}}
+}
+
+func (b *UserBuilder) Name(n string) *UserBuilder {
+    b.user.Name = n
+    return b
+}
+func (b *UserBuilder) Email(e string) *UserBuilder {
+    b.user.Email = e
+    return b
+}
+func (b *UserBuilder) Build() *User {
+    return b.user
+}
+```
+
+### 8. Prototype Pattern
+Clones existing objects to create new ones.
+
+```go
+type Document struct {
+    Title string
+    Body  string
+}
+
+func (d *Document) Clone() *Document {
+    return &Document{Title: d.Title, Body: d.Body}
+}
+```
+
+### 9. Adapter Pattern
+Converts one interface into another expected by the client.
+
+```go
+type Logger interface {
+    Log(msg string)
+}
+
+type ThirdPartyLogger struct{}
+func (t *ThirdPartyLogger) WriteLog(msg string, level int) {
+    fmt.Println("[Level", level, "]", msg)
+}
+
+type LoggerAdapter struct {
+    third *ThirdPartyLogger
+}
+
+func (a *LoggerAdapter) Log(msg string) {
+    a.third.WriteLog(msg, 1)
+}
+```

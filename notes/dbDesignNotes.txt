@@ -1,0 +1,142 @@
+Entity Integrity: Each row in a table should be uniquely identifiable using a primary key.
+Referential Integrity: Relationships between tables should be maintained through foreign key constraints.
+Domain Integrity: Data values should conform to defined formats, ranges, or rules
+
+
+Normalization is the process of organizing data to minimize redundancy and dependency. It involves breaking down large tables into smaller, more manageable ones and establishing relationships between them. The main goals of normalization are:
+
+Eliminating redundant data
+Ensuring data dependencies make sense
+Simplifying database maintenance
+
+
+Scalability considerations include:
+Horizontal scaling: Adding more servers to distribute the load
+Vertical scaling: Upgrading hardware resources on existing servers
+Partitioning: Dividing large tables into smaller, more manageable chunks
+Indexing strategies: Optimizing query performance as data volume grows
+
+Key performance considerations include:
+Query optimization: Structuring queries efficiently
+Indexing: Creating appropriate indexes to speed up data retrieval
+Denormalization: Strategically introducing redundancy to improve read performance
+Caching: Implementing caching mechanisms to reduce database load
+
+Security principles to consider include:
+Access control: Implementing user authentication and authorization
+Encryption: Securing data at rest and in transit
+Auditing: Tracking database access and changes
+
+Documenting functional and non-functional requirements
+Creating user stories and use cases
+
+Identifying main data entities
+Establishing relationships between entities
+Defining cardinality (one-to-one, one-to-many, many-to-many)
+Validating the model with stakeholders
+
+Defining attributes for each entity
+Specifying data types and constraints
+Normalizing the data structure
+Resolving many-to-many relationships
+
+Using the smallest data type that can accommodate the expected data
+Using specialized types (e.g., date, time, boolean) where appropriate
+Considering storage and performance implications of different data types
+
+Creating indexes on frequently queried columns
+Avoiding over-indexing, which can slow down write operations
+Regularly analyzing and optimizing index usage
+Considering composite indexes for multi-column queries
+
+Implement Data Validation and Constraints
+Enforce data integrity at the database level:
+
+Use CHECK constraints to enforce domain rules
+Implement FOREIGN KEY constraints for referential integrity
+Use UNIQUE constraints where appropriate
+Consider using triggers for complex validation logic
+
+
+## Real Time Ride matching
+Storing GEOGRAPHY in your Drivers table is essential for the current known location of a driver. However, directly updating a relational database like PostgreSQL or MySQL every second for hundreds or thousands of drivers isn't the most efficient or scalable approach for high-frequency, low-latency updates.
+
+Redis with GeoSpatial capabilities: This is a very common choice. Redis can store points (GEOGRAPHY equivalents) and perform quick queries like "find all drivers within X radius." It's incredibly fast for reads and writes.
+
+Apache Kafka / Message Queues: Location updates are often sent as messages to a Kafka topic or other message queue. This allows for:
+Decoupling: The driver app doesn't need to wait for the database write.
+Scalability: Multiple consumers can process location data (e.g., one service for updating Redis, another for historical logging).
+Reliability: Messages can be persisted.
+
+
+Event-driven architecture with Kafka means your different parts of your system (ordering, notifications, analytics, etc.) don't directly talk to each other all the time. Instead, they communicate by broadcasting "events" (like "order placed") onto a central, highly reliable message system (Kafka). Other parts of the system then listen for the events they care about and react accordingly.
+
+This makes the system:
+
+Flexible: You can add new services (e.g., a loyalty points service) easily by just having them listen to existing events.
+Scalable: Different parts can grow independently.
+Resilient: If one service temporarily goes down, Kafka holds the messages, so it can catch up when it comes back online.
+
+How do you prevent two delivery partners from being assigned the same order?
+
+Answer:
+By enforcing atomic updates in a single DB transaction:
+
+UPDATE Orders
+SET delivery_partner_id = ?, status = 'PICKED_UP'
+WHERE id = ? AND delivery_partner_id IS NULL
+
+•	Only one update will succeed.
+•	Others will fail due to the conditional clause.
+•	In distributed setups, use Redis-based locks or optimistic concurrency control.
+
+
+6. How do you recommend a delivery partner for a new order?
+
+Answer:
+Use a matching engine that:
+	1.	Filters AVAILABLE partners within a radius (e.g., 3km)
+	2.	Sorts by ETA or rating
+	3.	Sends requests in waves (first 3 partners, then next 5, etc.)
+For scalability:
+	•	Use Redis GEO for fast radius queries
+	•	Push assignment tasks to a Kafka queue
+	•	Handle retries if driver doesn’t accept in X seconds
+
+
+❓ 10. How would you ensure the system is scalable on festivals or peak hours?
+
+Answer:
+	•	Horizontally scale services via Kubernetes or ECS
+	•	Use caching (Redis) for:
+	•	Menu items
+	•	Popular restaurants
+	•	Apply rate limiting per user/IP
+	•	Use event-driven design:
+	•	Kafka for order, notification, and delivery events
+	•	Add auto-scaling queues and consumers
+
+❓ 11. Why do you store total_amount in the Orders table when it can be calculated?
+
+Answer:
+	•	Performance: reduces runtime joins/calculations on reads.
+	•	Audit: captures exact amount at transaction time (including discounts/surge).
+	•	Flexibility: enables price adjustments post-order without losing original value.
+
+This is denormalization for write-once, read-many optimization.
+
+🔄 Event-driven Interactions:
+	•	ORDER_PLACED → notify inventory, delivery, payment
+	•	PAYMENT_SUCCESS → trigger packing
+	•	ORDER_PACKED → notify delivery partner
+Use Kafka or similar queue for these workflows.
+
+❓ 13. How does your system scale to 10K orders/minute?
+
+Answer:
+	•	Microservices architecture with horizontal scaling
+	•	Redis for hot paths (inventory, locations, order status)
+	•	Kafka queues for async workflows
+	•	DB sharding per region/store
+	•	CDN + caching for product images, banners, etc.
+	•	Auto-scaling based on CPU/load

@@ -1,0 +1,185 @@
+Design the backend for a Cart Management System for an e-commerce platform like Amazon or Flipkart.
+
+Core Functional Requirements:
+	1.	Users can:
+		•	Add an item to their cart.
+		•	Remove an item.
+		•	Update quantity.
+		•	View cart with total price.
+	2.	Each cart item should track:
+		•	Product ID
+		•	Quantity
+		•	Price at time of adding (not current product price)
+		•	Timestamp added/updated
+	3.	A user has only one active cart at a time.
+	4.	The cart should automatically expire (e.g. 30 minutes of inactivity).
+	5.	Support for offers/discounts applied per item or entire cart.
+
+GPT
+
+type Product struct {
+	ID        string
+	Name      string
+	Price     float64
+	Quantity  int
+	UpdatedAt time.Time
+}
+
+type CartItem struct {
+	ProductID string
+	Name      string
+	Price     float64  // Price at time of adding
+	Quantity  int
+	AddedAt   time.Time
+}
+
+type Cart struct {
+	ID            string
+	UserID        string
+	Items         map[string]CartItem // key: productId
+	TotalPrice    float64
+	CouponCode    string
+	Discount      float64
+	Status        string    // active, expired, checked_out
+	LastUpdatedAt time.Time
+}
+
+type User struct {
+	ID     string
+	Name   string
+	Mobile string
+	Email  string
+}
+
+type CartService interface {
+	AddItem(userID, productID string, quantity int) error
+	RemoveItem(userID, productID string) error
+	UpdateQuantity(userID, productID string, quantity int) error
+	ViewCart(userID string) (Cart, error)
+	ApplyCoupon(userID, couponCode string) error
+	ExpireInactiveCarts() error
+}
+
+type CartServiceImpl struct {
+	cartStore       CartStore
+	inventory       InventoryService
+	offerService    OfferService
+	expiryThreshold time.Duration
+}
+
+type CartStore interface {
+	GetCart(userID string) (Cart, error)
+	SaveCart(cart Cart) error
+	DeleteCart(userID string) error
+}
+
+type InMemoryCartStore struct {
+	carts map[string]Cart // key: userID
+	mu    sync.RWMutex
+}
+
+type InventoryService interface {
+	GetProduct(productID string) (Product, error)
+	UpdateStock(productID string, delta int) error
+	IsAvailable(productID string, quantity int) bool
+}
+
+type InMemoryInventoryService struct {
+	products map[string]Product // key: productID
+	mu       sync.RWMutex
+}
+
+type OfferService interface {
+	ApplyDiscount(cart *Cart, couponCode string) error
+}
+
+type FixedOfferService struct {
+	validCoupons map[string]float64 // couponCode -> discountAmount
+}
+
+type InMemoryUserStore struct {
+	users map[string]User // key: userID
+	mu    sync.RWMutex
+}
+
+cartStore := &InMemoryCartStore{
+	carts: make(map[string]Cart),
+}
+
+inventory := &InMemoryInventoryService{
+	products: make(map[string]Product),
+}
+
+offerService := &FixedOfferService{
+	validCoupons: map[string]float64{
+		"SUMMER10": 10.0,
+	},
+}
+
+cartService := &CartServiceImpl{
+	cartStore:       cartStore,
+	inventory:       inventory,
+	offerService:    offerService,
+	expiryThreshold: 30 * time.Minute,
+}
+
+
+MY ANSWER
+
+
+User
+Item
+Cart
+
+CartSystem {
+	[]User
+	[]Cart
+	Inventory
+}
+CartSystem -> expireCart(User)
+
+
+User {
+	ID
+	Name
+	Mobile
+	Email
+	Cart
+}
+
+User -> addItem(Product, quantity)
+User ->	removeItem(productId)
+User ->	updateQuantity(productID, newQuantity)
+User -> viewCart() cart
+
+Cart {
+	ID
+	[]CartItem
+	TotalPrice
+	IsActive
+	UpdatedAt
+}
+
+CartItem {
+	ProductId
+	Name
+	Price
+	Quantity
+	AddedAt
+}
+
+Product {
+	ID
+	Name
+	Price
+	Quantity
+	UpdatedAt
+}
+
+Inventory {
+	[]Product
+}
+
+Inventory -> addProduct(Product)
+Inventory -> updateProduct(Product)
+Inventory -> removeProduct(Product)

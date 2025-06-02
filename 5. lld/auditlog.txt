@@ -1,0 +1,195 @@
+// 🧩 Problem Statement: Design an Audit Logging System
+
+// 📌 Requirements:
+// 1.	Every time a critical operation happens (e.g., user registration, coupon application, payment made), it should be logged.
+// 2.	Logs should include:
+// 	•	Timestamp
+// 	•	User ID
+// 	•	Action Type (e.g., REGISTER_USER, APPLY_COUPON)
+// 	•	Status (e.g., SUCCESS, FAILURE)
+// 	•	Optional Message
+// 3.	Logs should be stored in a way that:
+// 	•	They can be searched by user or action type
+// 	•	They are persisted
+// 4.	Admins should be able to:
+// 	•	Fetch logs by user ID
+// 	•	Fetch logs by action type
+// 	•	Fetch logs within a time range
+
+GPT
+
+type Log struct {
+	TimeStamp   time.Time
+	UserId      string
+	Type        LogType
+	Status      LogStatus
+	Description string
+}
+
+type LogType int
+
+const (
+	REGISTER_USER LogType = iota + 1
+	APPLY_COUPON
+	PAYMENT_DONE
+)
+
+type LogStatus int
+
+const (
+	SUCCESS LogStatus = iota + 1
+	FAILURE
+)
+
+type Logger interface {
+	CreateLog(log Log)
+	FindByUserId(userId string) []Log
+	FindByEventType(logType LogType) []Log
+	FindByTimeRange(from, to int64) []Log
+}
+
+type LoggerImpl struct {
+	Store      []*Log
+	UserLogs   map[string][]*Log
+	EventLogs  map[LogType][]*Log
+}
+
+func NewLogger() *LoggerImpl {
+	return &LoggerImpl{
+		Store:     []*Log{},
+		UserLogs:  make(map[string][]*Log),
+		EventLogs: make(map[LogType][]*Log),
+	}
+}
+
+func (l *LoggerImpl) CreateLog(log Log) {
+	l.Store = append(l.Store, &log)
+	l.UserLogs[log.UserId] = append(l.UserLogs[log.UserId], &log)
+	l.EventLogs[log.Type] = append(l.EventLogs[log.Type], &log)
+}
+
+func (l *LoggerImpl) FindByUserId(userId string) []Log {
+	var res []Log
+	for _, log := range l.UserLogs[userId] {
+		res = append(res, *log)
+	}
+	return res
+}
+
+func (l *LoggerImpl) FindByEventType(logType LogType) []Log {
+	var res []Log
+	for _, log := range l.EventLogs[logType] {
+		res = append(res, *log)
+	}
+	return res
+}
+
+func (l *LoggerImpl) FindByTimeRange(from, to int64) []Log {
+	var res []Log
+	fromTime := time.Unix(from, 0)
+	toTime := time.Unix(to, 0)
+	for _, log := range l.Store {
+		if !log.TimeStamp.Before(fromTime) && !log.TimeStamp.After(toTime) {
+			res = append(res, *log)
+		}
+	}
+	return res
+}
+
+type LoggerService interface {
+	LogEvent(userID string, logType LogType, status LogStatus, desc string)
+}
+
+type LoggerServiceImpl struct {
+	logger Logger
+}
+
+func NewLoggerService(logger Logger) *LoggerServiceImpl {
+	return &LoggerServiceImpl{logger: logger}
+}
+
+func (s *LoggerServiceImpl) LogEvent(userID string, logType LogType, status LogStatus, desc string) {
+	s.logger.CreateLog(Log{
+		TimeStamp:   time.Now(),
+		UserId:      userID,
+		Type:        logType,
+		Status:      status,
+		Description: desc,
+	})
+}
+
+logger := NewLogger()
+service := NewLoggerService(logger)
+
+service.LogEvent("U1", REGISTER_USER, SUCCESS, "Registered via email")
+
+logs := logger.FindByUserId("U1")
+fmt.Println("Logs for U1:", logs)
+
+
+
+
+MY ANSWER
+
+type Log struct {
+	TimeStamp   time.Time
+	UserId      string
+	Type        LogType
+	Status      LogStatus
+	Description string
+}
+
+type LogType int
+
+const (
+	REGISTER_USER LogType = iota + 1
+	APPLY_COUPON
+	PAYMENT_DONE
+)
+
+type LogStatus int
+
+const (
+	SUCCESS LogStatus = iota + 1
+	FAILURE
+)
+
+type Logger interface {
+	CreateLog(Log)
+	FindByUserId(userId string) []Log
+	FindByEventType(LogType) []Log
+	FindByTimeRange(from, to int64) []Log
+}
+
+type LoggerImpl struct {
+	Store []*Log
+	UserLogs map[string][]*Log
+	EventLogs map[LogType][]*Log
+}
+
+func (l *LoggerImpl) CreateLog(Log) {}
+func (l *LoggerImpl) FindByUserId(userId string) []Log {}
+func (l *LoggerImpl) FindByEventType(LogType) []Log {}
+func (l *LoggerImpl) FindByTimeRange(from, to int64) []Log
+
+
+type User struct {
+	ID     string
+	Name   string
+	Mobile string
+	Email  string
+	Roles  []UserRole
+}
+
+type UserRole int
+
+const (
+	ADMIN UserRole = iota + 1
+)
+
+type UserService interface {
+	AddUser(user User)
+	RemoveUser(userID string)
+	GetUser(userID string) (User, error)
+	IsAdmin(userID string) bool
+}

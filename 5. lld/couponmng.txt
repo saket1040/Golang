@@ -1,0 +1,323 @@
+/*
+📌 Core Requirements
+
+💼 Users
+	•	Can have multiple coupons.
+	•	Can apply a valid coupon during checkout.
+
+🎁 Coupons
+	•	Have a code, type (flat or percentage), max discount, expiry.
+	•	Can have constraints:
+	•	Min cart value.
+	•	User-specific coupons.
+	•	First-time user only.
+	•	One-time use per user.
+
+📤 Applying Coupon
+	•	Should check constraints and return final discounted value.
+
+⏲️ Lifecycle
+	•	Coupons can expire.
+	•	Admins can create or deactivate coupons.
+
+📊 Metrics
+	•	Log how many times a coupon was used.
+	•	Which users used it.
+*/
+
+GPT
+type User struct {
+	ID     string
+	Name   string
+	Mobile string
+	Email  string
+	Roles  []UserRole
+}
+
+type UserRole int
+
+const (
+	ADMIN UserRole = iota + 1
+)
+
+type Cart struct {
+	ID     string
+	UserId string
+	Price  float64
+}
+
+type CouponType int
+
+const (
+	FLAT CouponType = iota + 1
+	PERCENTAGE
+)
+
+type Coupon struct {
+	ID         string
+	Name       string
+	Type       CouponType
+	Value      float64
+	ExpireAt   time.Time
+	IsActive   bool
+	Constraints Constraints
+}
+
+type Constraints struct {
+	MaxDiscount       float64
+	MinCartValue      float64
+	FirstTimeUser     bool
+	OneTimeUse        bool
+	AllUsers          bool
+	EligibleUserIDs   []string
+}
+
+type UserService interface {
+	AddUser(user User)
+	RemoveUser(userID string)
+	GetUser(userID string) (User, error)
+	IsAdmin(userID string) bool
+}
+
+type CartService interface {
+	AddCart(cart Cart)
+	GetCart(cartID string) (Cart, error)
+}
+
+type CouponService interface {
+	AddCoupon(coupon Coupon) error
+	DeactivateCoupon(couponID string) error
+	ExpireCoupons()                     // cron job
+	GetCoupon(couponID string) (Coupon, error)
+	ApplyCoupon(userID, cartID, couponID string) (float64, error)
+}
+
+type CouponStrategy interface {
+	GetDiscountPrice(cart Cart, coupon Coupon) float64
+}
+
+type FlatCouponStrategy struct{}
+func (f *FlatCouponStrategy) GetDiscountPrice(cart Cart, coupon Coupon) float64 {
+	return math.Min(coupon.Value, coupon.Constraints.MaxDiscount)
+}
+
+type PercentageCouponStrategy struct{}
+func (p *PercentageCouponStrategy) GetDiscountPrice(cart Cart, coupon Coupon) float64 {
+	discount := (coupon.Value / 100.0) * cart.Price
+	return math.Min(discount, coupon.Constraints.MaxDiscount)
+}
+
+type ConstraintChecker interface {
+	IsEligible(user User, cart Cart, coupon Coupon, usage []*CouponUsage) bool
+}
+
+type MinCartValueChecker struct{}
+func (m *MinCartValueChecker) IsEligible(user User, cart Cart, coupon Coupon, usage []*CouponUsage) bool {
+	return cart.Price >= coupon.Constraints.MinCartValue
+}
+
+type FirstTimeUserChecker struct{}
+func (f *FirstTimeUserChecker) IsEligible(user User, cart Cart, coupon Coupon, usage []*CouponUsage) bool {
+	return coupon.Constraints.FirstTimeUser && len(usage) == 0
+}
+
+type EligibleUserChecker struct{}
+func (e *EligibleUserChecker) IsEligible(user User, cart Cart, coupon Coupon, usage []*CouponUsage) bool {
+	if coupon.Constraints.AllUsers {
+		return true
+	}
+	for _, uid := range coupon.Constraints.EligibleUserIDs {
+		if uid == user.ID {
+			return true
+		}
+	}
+	return false
+}
+
+type CouponUsage struct {
+	UserID    string
+	CouponID  string
+	UsedAt    time.Time
+}
+
+type CouponServiceImpl struct {
+	Store     map[string]*Coupon
+	Usage     map[string][]*CouponUsage
+	Strategies        map[CouponType]CouponStrategy
+	ConstraintCheckers []ConstraintChecker
+	UserService UserService
+	CartService CartService
+}
+
+func (c *CouponServiceImpl) ApplyCoupon(userID, cartID, couponID string) (float64, error) {
+	user, err := c.UserService.GetUser(userID)
+	cart, err := c.CartService.GetCart(cartID)
+	coupon, err := c.GetCoupon(couponID)
+
+	if !coupon.IsActive || time.Now().After(coupon.ExpireAt) {
+		return 0, errors.New("coupon inactive or expired")
+	}
+
+	usage := c.Usage[couponID]
+
+	// Check constraints
+	for _, checker := range c.ConstraintCheckers {
+		if !checker.IsEligible(user, cart, *coupon, usage) {
+			return 0, errors.New("constraint failed")
+		}
+	}
+
+	// Apply strategy
+	strategy := c.Strategies[coupon.Type]
+	discount := strategy.GetDiscountPrice(cart, *coupon)
+
+	// Log usage
+	c.Usage[couponID] = append(c.Usage[couponID], &CouponUsage{
+		UserID:   userID,
+		CouponID: couponID,
+		UsedAt:   time.Now(),
+	})
+
+	return cart.Price - discount, nil
+}
+
+type CouponSystem struct {
+	UserService    UserService
+	CartService    CartService
+	CouponService  CouponService
+}
+
+type UserServiceImpl struct {
+	Users map[string]*User
+}
+type CartServiceImpl struct {
+	Carts map[string]*Cart
+}
+
+
+
+
+MY ANSWER 
+
+
+User
+Coupon
+
+type User struct {
+	ID string
+	Name string
+	Mobile string
+	Email string
+	Roles	[]UserRole
+}
+
+type UserRole int
+
+const (
+    ADMIN      UserRole = iota + 1
+)
+
+type Coupon struct {
+	ID string
+	Name string
+	Type CouponType
+	Val float64
+	Status CouponStatus
+	ExpireAt time.Time
+	Contraint Contraints
+}
+
+type Contraints struct {
+	MaxDiscount float64
+	MinValApplicable float64
+	FirstTimeUser bool
+	OneTimeUse bool
+	AllUser bool
+	EligibleUsers []string
+}
+
+type CouponType int
+
+const (
+    FLAT      CouponType = iota + 1
+    PERCENTAGE
+)
+
+type CouponStatus int
+
+const (
+    ACTIVE   CouponStatus = iota + 1
+    INACTIVE
+	REDEEMED
+	EXPIRED
+)
+
+type Cart struct {
+	ID string
+	UserId string
+	Price float64
+}
+
+type CartService interface {
+	AddCart(user Cart)
+	GetCart(cartId string) Cart
+}
+
+type UserService interface {
+	AddUser(user User)
+	RemoveUser(userId string)
+	GetUser(userId string) User
+	//only admins can
+	CreateCoupon(Coupon)
+	DeactivateCoupon(couponId string)
+}
+
+type UserServiceImpl struct {
+	Users map[string]*User
+	CouponService
+}
+func (u *UserServiceImpl) AddUser(user User) {}
+func (u *UserServiceImpl) RemoveUser(userId string) {}
+func (u *UserServiceImpl) GetUser(userId string) User {}
+func (u *UserServiceImpl) CreateCoupon(Coupon)
+func (u *UserServiceImpl) DeactivateCoupon(couponId string)
+
+type CouponService interface{
+	ApplyCoupon(userID, cartID, couponId string)
+	AddCoupon(Coupon)
+	DeactivateCoupon(couponId string)
+	GetCoupon(couponId string) Coupon
+	//via cron job
+	ExpireCoupons()
+	GetStrategy(Coupon.Type) CouponStrategy
+}
+
+type CouponServiceImpl struct {
+	Store map[string]*Coupon
+}
+
+func (c *CouponServiceImpl)  ApplyCoupon(userID, cartID, couponId string) {}
+func (c *CouponServiceImpl)  AddCoupon(Coupon) {}
+func (c *CouponServiceImpl)  GetCoupon(couponId string) Coupon {}
+func (c *CouponServiceImpl)  DeactivateCoupon(couponId string) {}
+func (c *CouponServiceImpl)  ExpireCoupons() {}
+func (c *CouponServiceImpl) GetStrategy(Coupon.Type) CouponStrategy
+
+type CouponStrategy interface {
+	GetDiscountPrice(cart Cart, TotalPrice float64) float64
+}
+
+type FlatCouponStrategy struct {}
+func (f *FlatCouponStrategy) GetDiscountPrice(cart Cart, TotalPrice float64) float64 {}
+
+type PercentageCouponStrategy struct {}
+func (f *PercentageCouponStrategy) GetDiscountPrice(cart Cart, TotalPrice float64) float64 {}
+
+
+type CouponSystem struct {
+	UserService
+	CouponService
+	CartService
+}
+
+func (c *CouponSystem)  ValidateCoupon(userId, couponId, cartId) {}

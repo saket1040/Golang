@@ -1,0 +1,124 @@
+Here’s a complete Low-Level Design (LLD) of an ATM System in Go using SOLID principles and Design Patterns like Strategy, Factory, and optionally State/Observer.
+
+⸻
+
+✅ Requirements
+	•	Authenticate user using card + PIN
+	•	Allow operations: Balance Inquiry, Cash Withdrawal, Mini Statement
+	•	Handle multiple bank accounts and cards
+	•	ATM should manage its own cash inventory
+	•	Support multiple ATMs with different configurations
+
+🧪 Example Flow
+	1.	User inserts card → CardInsertedState
+	2.	User enters PIN → AuthenticatedState
+	3.	User chooses withdraw → WithdrawalStrategy runs
+	4.	ATM updates inventory and calls Bank API
+	5.	Card is ejected → back to IdleState
+
+type User struct {
+	ID       string
+	Name     string
+	Accounts []*Account
+}
+
+type Card struct {
+	CardNumber string
+	PIN        string
+	UserID     string
+	BankID     string
+	Expiry     time.Time
+}
+
+type Account struct {
+	AccountNumber string
+	Balance       float64
+	UserID        string
+}
+
+func (a *Account) Debit(amount float64) error
+func (a *Account) Credit(amount float64)
+
+type Transaction struct {
+	TimeStamp   time.Time
+	Account     *Account
+	Type        TransactionType
+	Amount      float64
+	Description string
+	Status      TransactionStatus
+}
+
+type TransactionType int
+const (
+	WITHDRAW TransactionType = iota + 1
+	BALANCE_INQUIRY
+)
+
+type TransactionStatus int
+const (
+	SUCCESS TransactionStatus = iota + 1
+	FAILED
+)
+
+type ATM struct {
+	ID            string
+	Location      string
+	CashInventory *CashInventory
+	State         ATMState
+	BankRegistry  map[string]BankAPI
+}
+
+type CashInventory struct {
+	Denominations map[int]int // e.g., 2000: 10 notes
+
+	func Dispense(amount int) error
+	func LoadCash(denomination int, count int)
+	func GetBalance() int
+}
+
+type ATMState interface {
+	InsertCard(atm *ATM, card Card) error
+	EnterPIN(atm *ATM, pin string) error
+	SelectTransaction(atm *ATM, tType TransactionType, amount float64) error
+	EjectCard(atm *ATM) error
+}
+
+type AuthenticatedState struct {}
+
+func (s *AuthenticatedState) SelectTransaction(atm *ATM, tType TransactionType, amount float64) error {
+	strategy := GetTransactionStrategy(tType)
+	return strategy.Execute(atm, amount)
+}
+
+type TransactionStrategy interface {
+	Execute(atm *ATM, amount float64) error
+}
+
+type WithdrawalStrategy struct {}
+
+func (w *WithdrawalStrategy) Execute(atm *ATM, amount float64) error {
+	// Check balance, deduct, update inventory
+}
+
+type BalanceInquiryStrategy struct {}
+
+func (b *BalanceInquiryStrategy) Execute(atm *ATM, amount float64) error {
+	// Display balance
+}
+
+type BankAPI interface {
+	ValidatePIN(card Card, pin string) bool
+	GetAccount(card Card) *Account
+	LogTransaction(t Transaction)
+}
+
+func GetTransactionStrategy(tType TransactionType) TransactionStrategy {
+	switch tType {
+		case WITHDRAW:
+			return &WithdrawalStrategy{}
+		case BALANCE_INQUIRY:
+			return &BalanceInquiryStrategy{}
+		default:
+			return nil
+	}
+}

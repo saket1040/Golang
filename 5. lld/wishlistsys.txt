@@ -1,0 +1,222 @@
+Design a Wishlist System where users can add products they’re interested in for future reference.
+1.	Users can:
+	•	Add/remove products to/from their wishlist.
+	•	View their wishlist.
+	•	Move item from wishlist to cart.
+2.	System should:
+	•	Support multiple wishlists per user (e.g., “Birthday Gifts”, “Gadgets”).
+	•	Notify users (eventually) if a product’s price drops or goes out of stock.
+	•	Handle millions of users and products (scale-ready design).
+3.	Wishlist should be persisted and retrievable quickly.
+
+GPT
+type User struct {
+	ID    string
+	Name  string
+	Phone string
+	Email string
+}
+
+type Product struct {
+	ID        string
+	Name      string
+	Price     float64
+	Quantity  int64
+	UpdatedAt time.Time
+}
+
+type Wishlist struct {
+	ID         string
+	UserID     string
+	Name       string
+	ProductIDs map[string]time.Time // productId -> addedAt
+	Status     WishlistStatus
+	DeletedAt  *time.Time
+}
+
+type WishlistStatus int
+
+const (
+	ACTIVE WishlistStatus = iota + 1
+	INACTIVE
+)
+
+type UserService interface {
+	AddUser(user User)
+	RemoveUser(userID string)
+	GetUser(userID string) (*User, error)
+}
+
+type ProductService interface {
+	AddProduct(product Product)
+	RemoveProduct(productID string)
+	UpdateProductPrice(productID string, price float64)
+	UpdateProductQuantity(productID string, quantity int64)
+	GetProduct(productID string) (*Product, error)
+}
+
+type WishlistService interface {
+	CreateWishlist(userID, name string) (*Wishlist, error)
+	DeleteWishlist(wishlistID string) error
+	AddProductToWishlist(wishlistID, productID string) error
+	RemoveProductFromWishlist(wishlistID, productID string) error
+	GetWishlist(wishlistID string) (*Wishlist, error)
+}
+
+type Observer interface {
+	Register(wishlistID, productID string)
+	Notify(productID string)
+}
+
+type UserServiceImpl struct {
+	store map[string]*User
+}
+
+type ProductServiceImpl struct {
+	store    map[string]*Product
+	observer Observer
+}
+
+type WishlistServiceImpl struct {
+	store     map[string]*Wishlist
+	productDB ProductService
+}
+
+type ObserverImpl struct {
+	productToWishlists map[string]map[string]struct{}
+	wishlistService     WishlistService
+}
+
+type WishlistSystem struct {
+	userService     UserService
+	productService  ProductService
+	wishlistService WishlistService
+}
+
+system := WishlistSystem{
+	userService:     &UserServiceImpl{store: make(map[string]*User)},
+	productService:  &ProductServiceImpl{store: make(map[string]*Product)},
+	wishlistService: &WishlistServiceImpl{store: make(map[string]*Wishlist)},
+}
+
+
+
+
+MY ANSWER
+
+User
+Product
+Wishlist
+package main
+
+import "time"
+
+type User struct {
+	ID    string
+	Name  string
+	Phone string
+	Email string
+}
+
+type Product struct {
+	ID        string
+	Name      string
+	Price     float64
+	UpdatedAt time.Time
+	Quantity  int64
+}
+
+type Wishlist struct {
+	ID         string
+	UserId     string
+	ProductIds []string
+	Name       string
+	Status     WishlistStatus
+	DeletedAt  time.Time
+}
+
+type WishlistStatus int
+
+const (
+	ACTIVE WishlistStatus = iota + 1
+	INACTIVE
+)
+
+type UserService interface {
+	AddUser(user User)
+	RemoveUser(userId string)
+	GetUser(userId string) User
+}
+
+type UserServiceImpl struct {
+	Users map[string]*User
+}
+func (u *UserServiceImpl) AddUser(user User) {}
+func (u *UserServiceImpl) RemoveUser(userId string) {}
+func (u *UserServiceImpl) GetUser(userId string) User {}
+
+type ProductService interface {
+	AddProduct(Product Product)
+	RemoveProduct(ProductId string)
+	UpdateProductPrice(productId string, price float64)
+	UpdateProductQuantity(productId string, quantity int64)
+	GetProduct(ProductId string) Product
+}
+
+type ProductServiceImpl struct {
+	Products map[string]*Product
+	Observer
+}
+
+func (u *ProductServiceImpl) AddProduct(Product Product) {}
+func (u *ProductServiceImpl) RemoveProduct(ProductId string) {}
+func (u *ProductServiceImpl) UpdateProductPrice(productId string, price float64) {
+	// call observer.notify
+}
+func (u *ProductServiceImpl) UpdateProductQuantity(productId string, quantity int64){
+	// call observer.notify
+}
+func (u *ProductServiceImpl) GetProduct(ProductId string) Product {}
+
+type WishListService interface {
+	CreateWishList(wishList Wishlist)
+	RemoveWishList(wishListId string)
+	GetWishList(wishListId string) Wishlist
+}
+
+type WishListServiceImpl struct {
+	WishLists map[string]*Wishlist
+	Observer
+}
+
+func (u *WishListServiceImpl) CreateWishList(WishList Wishlist) {
+	// call oberver to add
+}
+func (u *WishListServiceImpl) RemoveWishList(WishListId string) {}
+func (u *WishListServiceImpl) GetWishList(WishListId string) Wishlist {}
+
+type Observer interface{
+	addToMap()
+	notify(productId string)
+}
+
+type ObserverImpl struct {
+	WishListService
+	ProductToWishList map[string]*string
+}
+func (u *ObserverImpl) notify(productId string)
+func (u *ObserverImpl) addToMap()
+
+
+type WishListSystemInterface interface {
+	AddToWishlist(Product)
+	RemoveFromWishlist()
+}
+
+type WishListSystem struct{
+	UserService
+	ProductService
+	WishListService
+}
+func (u *WishListSystem) AddToWishlist(Product)
+func (u *WishListSystem) RemoveFromWishlist()

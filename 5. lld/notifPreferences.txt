@@ -1,0 +1,112 @@
+type User struct {
+	ID       string
+	Name     string
+	Email    string
+	Phone    string
+	DeviceID string // for push notifications
+}
+
+type NotificationChannel interface {
+	Send(user User, message string) error
+	GetName() string
+}
+
+type EmailChannel struct{}
+func (e *EmailChannel) Send(user User, message string) error {}
+func (e *EmailChannel) GetName() string { return "EMAIL" }
+
+type SMSChannel struct{}
+func (s *SMSChannel) Send(user User, message string) error {}
+func (s *SMSChannel) GetName() string { return "SMS" }
+
+type PushChannel struct{}
+func (p *PushChannel) Send(user User, message string) error {}
+func (p *PushChannel) GetName() string { return "PUSH" }
+
+type NotificationEvent string
+
+const (
+	OrderPlaced    NotificationEvent = "ORDER_PLACED"
+	PaymentFailed  NotificationEvent = "PAYMENT_FAILED"
+)
+
+type UserNotificationPreference struct {
+	UserID         string
+	EventChannelMap map[NotificationEvent][]string // event → ["EMAIL", "PUSH"]
+}
+
+
+type NotificationService interface {
+	RegisterChannel(channel NotificationChannel)
+	SendNotification(event NotificationEvent, user User, message string)
+	UpdateUserPreferences(userID string, event NotificationEvent, channels []string)
+}
+
+type NotificationServiceImpl struct {
+	channels        map[string]NotificationChannel
+	preferenceStore map[string]*UserNotificationPreference
+	retryService    RetryService
+	logger          Logger
+}
+
+func (n *NotificationServiceImpl) RegisterChannel(channel NotificationChannel) {
+	n.channels[channel.GetName()] = channel
+}
+
+func (n *NotificationServiceImpl) UpdateUserPreferences(userID string, event NotificationEvent, channels []string)
+
+//better version downward
+func (n *NotificationServiceImpl) SendNotification(event NotificationEvent, user User, message string) {
+	preference := n.preferenceStore[user.ID]
+	channels := preference.EventChannelMap[event]
+
+	for _, chName := range channels {
+		channel := n.channels[chName]
+		n.retryService.ExecuteWithRetry(func() error {
+			err := channel.Send(user, message)
+			n.logger.Log(user.ID, chName, event, err)
+			return err
+		}, chName)
+	}
+}
+
+func (n *NotificationServiceImpl) SendNotification(event NotificationEvent, user User, message string) {
+	preference := n.preferenceStore[user.ID]
+	channels := preference.EventChannelMap[event]
+
+	for _, channelName := range channels {
+		channel := n.channels[channelName]
+		n.sendWithRetries(user, event, message, channelName, channel)
+	}
+}
+
+func (n *NotificationServiceImpl) sendWithRetries(user User, event NotificationEvent, message, channelName string, channel NotificationChannel) {
+	maxRetries := 3
+	var err error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		err = channel.Send(user, message)
+		if err == nil {
+			break
+		}
+	}
+
+	n.logger.Log(user.ID, channelName, event, err)
+}
+
+type RetryService interface {
+	ExecuteWithRetry(operation func() error, channelName string)
+}
+
+type RetryPolicy struct {
+	MaxAttempts int
+	Backoff     time.Duration
+}
+
+type RetryServiceImpl struct {
+	Policies map[string]RetryPolicy // channel → policy
+}
+
+type Logger interface {
+	Log(userID, channelName string, event NotificationEvent, err error)
+}

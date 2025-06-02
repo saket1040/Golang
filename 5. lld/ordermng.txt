@@ -1,0 +1,162 @@
+📦 Design a Food Delivery Platform (like Swiggy/Zomato)
+
+🎯 Core Features:
+	1.	Users can place orders from restaurants
+	2.	Orders can be delivered by delivery agents
+	3.	Users can pay via multiple payment methods (UPI, Card, Wallet)
+	4.	Order status moves through multiple states: Placed → Preparing → OutForDelivery → Delivered → Cancelled
+	5.	Notifications (SMS, Email, Push) are sent at key stages
+	6.	Discounts/Coupons are applied using different strategies
+	7.	Supports future expansion like dine-in, self-pickup, loyalty program, etc.
+
+
+User
+Order
+Restaurant
+DeliverAgent
+Payment
+
+
+type User struct {
+	ID     string
+	Name   string
+	Email  string
+	Mobile string
+	Roles  []UserRole
+}
+
+type UserRole int
+
+const (
+	CUSTOMER UserRole = iota + 1
+	RESTAURANT_OWNER
+	DELIVERY_AGENT
+	ADMIN
+)
+
+type Restaurant struct {
+	ID      string
+	Name    string
+	Address string
+	Menu    []FoodItem
+	Status  RestaurantStatus
+}
+
+type RestaurantStatus int
+
+const (
+	OPEN RestaurantStatus = iota + 1
+	CLOSED
+)
+
+type FoodItem struct {
+	ID        string
+	Name      string
+	Price     float64
+	Available bool
+}
+
+type Order struct {
+	ID         string
+	UserID     string
+	RestaurantID string
+	Items      []FoodItem
+	Status     OrderStatus
+	TotalPrice float64
+	CreatedAt  time.Time
+}
+
+type OrderStatus int
+
+const (
+	PENDING OrderStatus = iota + 1
+	ACCEPTED
+	PREPARING
+	ASSIGNED_TO_DELIVERY
+	OUT_FOR_DELIVERY
+	DELIVERED
+	CANCELLED
+)
+
+type OrderService interface {
+	PlaceOrder(userID, restaurantID string, itemIDs []string) Order
+	UpdateOrderStatus(orderID string, status OrderStatus)
+	GetOrder(orderID string) Order
+}
+
+type PricingStrategy interface {
+	CalculateTotal(items []FoodItem) float64
+}
+
+type DefaultPricingStrategy struct{}
+func (p *DefaultPricingStrategy) CalculateTotal(items []FoodItem) float64 {
+	var total float64
+	for _, item := range items {
+		total += item.Price
+	}
+	return total
+}
+
+type DeliveryAssignmentStrategy interface {
+	AssignDeliveryAgent(order Order) string // returns delivery agent ID
+}
+
+type Observer interface {
+	Notify(userID string, message string)
+}
+
+type NotificationChannel interface {
+	Send(userID string, message string) error
+}
+
+type EmailNotification struct{}
+func (e *EmailNotification) Send(userID string, message string) error {}
+
+type SMSNotification struct{}
+func (s *SMSNotification) Send(userID string, message string) error {}
+
+type NotificationFactory struct{}
+func (f *NotificationFactory) GetChannel(channelType string) NotificationChannel {
+	if channelType == "email" {
+		return &EmailNotification{}
+	}
+	return &SMSNotification{}
+}
+
+type OrderServiceImpl struct {
+	orderStore                map[string]*Order
+	restaurantStore           map[string]*Restaurant
+	foodItemStore             map[string]*FoodItem
+	pricingStrategy           PricingStrategy
+	deliveryAssignmentStrategy DeliveryAssignmentStrategy
+	observers                 []Observer
+}
+
+func (s *OrderServiceImpl) PlaceOrder(userID, restaurantID string, itemIDs []string) Order {
+	items := []FoodItem{}
+	for _, id := range itemIDs {
+		items = append(items, *s.foodItemStore[id])
+	}
+	total := s.pricingStrategy.CalculateTotal(items)
+	order := Order{ID: uuid.NewString(), UserID: userID, Items: items, TotalPrice: total, Status: PENDING}
+	s.orderStore[order.ID] = &order
+	s.notifyAll(userID, fmt.Sprintf("Order %s placed successfully", order.ID))
+	return order
+}
+
+func (s *OrderServiceImpl) UpdateOrderStatus(orderID string, status OrderStatus) {
+	order := s.orderStore[orderID]
+	order.Status = status
+	s.notifyAll(order.UserID, fmt.Sprintf("Order %s status changed to %v", orderID, status))
+}
+
+func (s *OrderServiceImpl) notifyAll(userID string, msg string) {
+	for _, o := range s.observers {
+		o.Notify(userID, msg)
+	}
+}
+
+type UserService interface {
+	RegisterUser(user User)
+	GetUser(userID string) User
+}
